@@ -18,61 +18,9 @@ interface Report {
   jobDescription: string
 }
 
+// PDF extraction disabled - use text paste instead
 async function extractTextFromPDF(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = async function(e) {
-      try {
-        const arrayBuffer = e.target?.result as ArrayBuffer
-        
-        // Load PDF.js from CDN via script
-        if (!(window as any).pdfjsLib) {
-          // Load the main library
-          const script = document.createElement('script')
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-          document.head.appendChild(script)
-          
-          await new Promise((resolve, reject) => {
-            script.onload = resolve
-            script.onerror = () => reject(new Error("Failed to load PDF library"))
-          })
-        }
-        
-        const pdfjsLib = (window as any).pdfjsLib
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-        
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
-        const pdf = await loadingTask.promise
-        
-        let fullText = ""
-        
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i)
-          const textContent = await page.getTextContent()
-          
-          const pageText = textContent.items
-            .filter((item: any) => item.str)
-            .map((item: any) => item.str)
-            .join(' ')
-          
-          if (pageText.trim()) {
-            fullText += pageText + '\n'
-          }
-        }
-        
-        if (!fullText.trim()) {
-          reject(new Error("No text found - PDF may be scanned"))
-          return
-        }
-        
-        resolve(fullText.trim())
-      } catch (err) {
-        reject(err)
-      }
-    }
-    reader.onerror = () => reject(new Error("Failed to read file"))
-    reader.readAsArrayBuffer(file)
-  })
+  throw new Error("Please paste your resume text instead of uploading a PDF file.")
 }
 
 export default function Home() {
@@ -109,58 +57,14 @@ export default function Home() {
     const file = e.target.files?.[0]
     if (!file) return
     
-    setIsExtracting(true)
-    setExtractionError("")
+    setExtractionError("PDF upload is currently disabled. Please paste your resume text in the text box below.")
     
-    try {
-      const text = await extractTextFromPDF(file)
-      setResumeText(text)
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        role: "assistant",
-        content: `Resume uploaded successfully! I've extracted the text. Now I'll analyze it. Please wait...`
-      }])
-      
-      // Auto-analyze the resume
-      const analysisPrompt = `Please analyze this resume and provide detailed feedback on:
-1. Overall impression and strengths
-2. Areas for improvement  
-3. Skills gap analysis
-4. Specific recommendations to make it stronger
+    // Clear the file input
+    e.target.value = ""
+  }
 
-Resume content:
-${text.slice(0, 3000)}`
-      
-      setIsLoading(true)
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: analysisPrompt,
-          resumeText: text,
-          jobDescription: "",
-          history: []
-        })
-      })
-      
-      const data = await response.json()
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: "assistant",
-        content: data.response
-      }])
-      
-      setShowResumeModal(false)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error"
-      if (errorMessage.includes("scanned") || errorMessage.includes("No text found")) {
-        setExtractionError("This PDF appears to be scanned/image-based. Please paste your resume text manually or convert to text-based PDF.")
-      } else {
-        setExtractionError("Failed to read PDF. Please try pasting your resume text instead.")
-      }
-    } finally {
-      setIsExtracting(false)
-    }
+  const handlePasteResume = () => {
+    setShowResumeModal(true)
   }
 
   const sendMessage = async () => {
@@ -261,8 +165,8 @@ ${text.slice(0, 3000)}`
                 variant="outline"
                 className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
               >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Resume
+                <FileText className="w-4 h-4 mr-2" />
+                Resume
               </Button>
             </div>
           </div>
@@ -424,53 +328,13 @@ ${text.slice(0, 3000)}`
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-[#12121a] rounded-2xl border border-white/10 max-w-xl w-full p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Upload Your Resume</h3>
+              <h3 className="text-xl font-bold text-white">Paste Your Resume</h3>
               <button onClick={() => setShowResumeModal(false)} className="text-gray-400 hover:text-white text-xl">
                 ✕
               </button>
             </div>
             
-            {/* File Upload */}
-            <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center mb-4 hover:border-violet-500/30 transition-colors">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={isExtracting}
-                className="hidden"
-                id="resume-upload"
-              />
-              <label htmlFor="resume-upload" className="cursor-pointer">
-                {isExtracting ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-10 h-10 text-violet-400 animate-spin" />
-                    <p className="text-gray-300">Extracting text from PDF...</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <Upload className="w-10 h-10 text-violet-400" />
-                    <p className="text-white font-medium">Click to upload PDF</p>
-                    <p className="text-gray-500 text-sm">or drag and drop</p>
-                  </div>
-                )}
-              </label>
-            </div>
-            
-            {extractionError && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
-                <p className="text-red-400 text-sm">{extractionError}</p>
-              </div>
-            )}
-            
-            {/* Manual Paste Option */}
-            <div className="relative mb-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-[#12121a] px-2 text-gray-500">OR</span>
-              </div>
-            </div>
+            <p className="text-gray-400 text-sm mb-4">Copy and paste your resume text below for analysis.</p>
             
             <textarea
               value={resumeText}
