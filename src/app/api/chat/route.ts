@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { message, resumeText } = body
     
-    const apiKey = "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"
+    const apiKey = process.env.OPENROUTER_API_KEY
 
     let fullMessage = message
     
