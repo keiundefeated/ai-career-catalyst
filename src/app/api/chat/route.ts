@@ -5,7 +5,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { message, resumeText } = body
     
-    const apiKey = process.env.OPENROUTER_API_KEY
+    // For Vercel: Set OPENROUTER_API_KEY in environment variables
+// For local: Use .env file
+const apiKey = process.env.OPENROUTER_API_KEY || "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"
 
     let fullMessage = message
     
