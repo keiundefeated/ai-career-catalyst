@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Send, Bot, User, Sparkles, Briefcase, FileText, Zap, Shield } from "lucide-react"
+import { Send, Bot, User, Sparkles, Briefcase, FileText, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface Message {
@@ -13,27 +13,30 @@ interface Message {
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([
-    { id: 0, role: "assistant", content: "Hello! I'm your AI Career Consultant. Ask me anything about your career, resume, interviews, or job search!" }
+    { id: 0, role: "assistant", content: "Hello! I'm your AI Career Consultant. Paste your resume below and ask me to analyze it, or ask me anything about careers, interviews, or job search!" }
   ])
   const [input, setInput] = useState("")
+  const [resumeText, setResumeText] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [showResume, setShowResume] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return
+  const sendMessage = async (customMessage?: string) => {
+    const msgToSend = customMessage || input
+    if (!msgToSend.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now(),
       role: "user",
-      content: input
+      content: msgToSend
     }
 
     setMessages(prev => [...prev, userMessage])
-    setInput("")
+    if (!customMessage) setInput("")
     setIsLoading(true)
 
     setMessages(prev => [...prev, { id: Date.now() + 1, role: "assistant", content: "", typing: true }])
@@ -42,10 +45,14 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ 
+          message: msgToSend,
+          resumeText: resumeText 
+        })
       })
 
       const data = await response.json()
+      console.log("Response:", data)
 
       setMessages(prev => {
         const filtered = prev.filter(m => !m.typing)
@@ -56,6 +63,7 @@ export default function Home() {
         }]
       })
     } catch (error) {
+      console.error("Error:", error)
       setMessages(prev => {
         const filtered = prev.filter(m => !m.typing)
         return [...filtered, {
@@ -69,37 +77,76 @@ export default function Home() {
     }
   }
 
+  const analyzeResume = () => {
+    if (!resumeText.trim()) return
+    const prompt = `Please analyze my resume and provide feedback on strengths, weaknesses, and suggestions for improvement. Resume: ${resumeText.slice(0, 2000)}`
+    sendMessage(prompt)
+    setShowResume(false)
+  }
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey) {
       e.preventDefault()
       sendMessage()
     }
   }
 
-  const quickActions = [
-    { icon: FileText, label: "Resume Help", prompt: "Help me improve my resume" },
-    { icon: Briefcase, label: "Career Advice", prompt: "What career path should I choose?" },
-    { icon: Zap, label: "Interview Tips", prompt: "Give me interview preparation tips" },
-  ]
-
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
-      {/* Header */}
       <header className="border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Career Catalyst AI</h1>
+                <p className="text-xs text-gray-400">Your Personal Career Consultant</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">Career Catalyst AI</h1>
-              <p className="text-xs text-gray-400">Your Personal Career Consultant</p>
-            </div>
+            <Button
+              onClick={() => setShowResume(!showResume)}
+              variant="outline"
+              className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {resumeText ? "Resume Added ✓" : "Add Resume"}
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
+      {showResume && (
+        <div className="bg-[#12121a] border-b border-white/10 p-4">
+          <div className="max-w-2xl mx-auto">
+            <h3 className="text-white font-medium mb-2">Paste your resume:</h3>
+            <textarea
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+              placeholder="Paste your resume text here..."
+              className="w-full h-40 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 resize-none mb-3"
+            />
+            <div className="flex gap-2">
+              <Button
+                onClick={analyzeResume}
+                disabled={!resumeText.trim() || isLoading}
+                className="bg-violet-600 hover:bg-violet-700"
+              >
+                Analyze Resume
+              </Button>
+              <Button
+                onClick={() => setShowResume(false)}
+                variant="outline"
+                className="border-white/20 text-white"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="relative py-12 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-violet-900/20 via-transparent to-transparent" />
         <div className="container mx-auto px-4 relative">
@@ -107,25 +154,23 @@ export default function Home() {
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
               Your AI-Powered <span className="bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">Career Consultant</span>
             </h2>
-            <p className="text-gray-400 mb-6">Get instant answers about careers, resumes, interviews, and more.</p>
+            <p className="text-gray-400 mb-6">Ask me anything about careers, resumes, interviews, or job search!</p>
             
             <div className="flex flex-wrap justify-center gap-3">
-              {quickActions.map((action, i) => (
-                <button
-                  key={i}
-                  onClick={() => setInput(action.prompt)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:border-violet-500/30 transition-all"
-                >
-                  <action.icon className="w-4 h-4 text-violet-400" />
-                  {action.label}
-                </button>
-              ))}
+              <button onClick={() => setShowResume(true)} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:border-violet-500/30 transition-all">
+                <FileText className="w-4 h-4 text-violet-400" />Analyze Resume
+              </button>
+              <button onClick={() => sendMessage("Give me career advice")} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:border-violet-500/30 transition-all">
+                <Briefcase className="w-4 h-4 text-violet-400" />Career Advice
+              </button>
+              <button onClick={() => sendMessage("Give me interview tips")} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-sm text-gray-300 hover:bg-white/10 hover:border-violet-500/30 transition-all">
+                <Zap className="w-4 h-4 text-violet-400" />Interview Tips
+              </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Chat */}
       <section className="py-8 pb-20">
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto">
@@ -137,8 +182,7 @@ export default function Home() {
                 <div>
                   <h3 className="text-white font-medium">Career Consultant AI</h3>
                   <p className="text-xs text-green-400 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    Online
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />Online
                   </p>
                 </div>
               </div>
@@ -157,7 +201,7 @@ export default function Home() {
                           <span className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
                       ) : (
-                        <p className="text-sm">{msg.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                       )}
                     </div>
                   </div>
@@ -175,11 +219,7 @@ export default function Home() {
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 resize-none"
                     rows={1}
                   />
-                  <Button
-                    onClick={sendMessage}
-                    disabled={!input.trim() || isLoading}
-                    className="bg-violet-600 hover:bg-violet-700 px-6"
-                  >
+                  <Button onClick={() => sendMessage()} disabled={!input.trim() || isLoading} className="bg-violet-600 hover:bg-violet-700 px-6">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
